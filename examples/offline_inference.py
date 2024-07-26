@@ -25,7 +25,8 @@ llm = LLM(model="facebook/opt-125m")
 with torch.no_grad():
 
     llm.llm_engine.model_executor.driver_worker.model_runner.model = torch.compile(
-        llm.llm_engine.model_executor.driver_worker.model_runner.model
+        llm.llm_engine.model_executor.driver_worker.model_runner.model,
+        dynamic=True,
     )
 
     # Warp up run
