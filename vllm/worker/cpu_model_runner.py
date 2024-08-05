@@ -130,6 +130,7 @@ class CPUModelRunner(ModelRunnerBase[CPUModelInput]):
                                parallel_config=self.parallel_config,
                                scheduler_config=self.scheduler_config,
                                cache_config=self.cache_config)
+        self.model = torch.compile(self.model)
 
     def _prepare_prompt(
         self,

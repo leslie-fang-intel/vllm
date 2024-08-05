@@ -6,7 +6,6 @@ import torch.nn as nn
 
 from vllm.model_executor.custom_op import CustomOp
 
-
 class RMSNorm(CustomOp):
     """Root mean square normalization.
 
@@ -54,7 +53,7 @@ class RMSNorm(CustomOp):
             ops.fused_add_rms_norm(
                 x,
                 residual,
-                self.weight.data,
+                self.weight,
                 self.variance_epsilon,
             )
             return x, residual
@@ -62,7 +61,7 @@ class RMSNorm(CustomOp):
         ops.rms_norm(
             out,
             x,
-            self.weight.data,
+            self.weight,
             self.variance_epsilon,
         )
         return out
