@@ -130,7 +130,12 @@ class CPUModelRunner(ModelRunnerBase[CPUModelInput]):
                                parallel_config=self.parallel_config,
                                scheduler_config=self.scheduler_config,
                                cache_config=self.cache_config)
-        self.model = torch.compile(self.model)
+        # self.model = torch.compile(self.model)
+        for i in range(self.model.model.start_layer, self.model.model.end_layer):
+            # self.model.model.layers[i] = torch.compile(self.model.model.layers[i])
+            self.model.model.layers[i].self_attn.qkv_proj = torch.compile(self.model.model.layers[i].self_attn.qkv_proj, dynamic=True)
+            self.model.model.layers[i].self_attn.o_proj = torch.compile(self.model.model.layers[i].self_attn.o_proj, dynamic=True)
+            self.model.model.layers[i].mlp = torch.compile(self.model.model.layers[i].mlp, dynamic=True)
 
     def _prepare_prompt(
         self,
