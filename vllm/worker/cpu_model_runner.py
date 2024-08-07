@@ -27,6 +27,12 @@ from vllm.worker.model_runner_base import (
 if TYPE_CHECKING:
     from vllm.attention.backends.abstract import AttentionBackend
 
+# Previously, we import this at first run of next token
+# which cause re-compile between first run of first token and next run of first token
+# import it here globally to workaround this recompile
+from vllm.attention.ops.ipex_attn import PagedAttention
+
+
 logger = init_logger(__name__)
 
 _PAD_SLOT_ID = -1
@@ -130,12 +136,20 @@ class CPUModelRunner(ModelRunnerBase[CPUModelInput]):
                                parallel_config=self.parallel_config,
                                scheduler_config=self.scheduler_config,
                                cache_config=self.cache_config)
-        # self.model = torch.compile(self.model)
-        for i in range(self.model.model.start_layer, self.model.model.end_layer):
-            # self.model.model.layers[i] = torch.compile(self.model.model.layers[i])
-            self.model.model.layers[i].self_attn.qkv_proj = torch.compile(self.model.model.layers[i].self_attn.qkv_proj, dynamic=True)
-            self.model.model.layers[i].self_attn.o_proj = torch.compile(self.model.model.layers[i].self_attn.o_proj, dynamic=True)
-            self.model.model.layers[i].mlp = torch.compile(self.model.model.layers[i].mlp, dynamic=True)
+        # Option 1: Full Graph Compile
+        self.model.forward = torch.compile(self.model.forward)
+        # self.model.forward = torch.compile(self.model.forward, dynamic=True)
+
+        # Option 2: Only compile 1 attention layer
+        # for i in range(self.model.model.start_layer, self.model.model.end_layer):
+        #     self.model.model.layers[i].forward = torch.compile(self.model.model.layers[i].forward, dynamic=True)
+        #     break
+
+        # Option 3: Compile each linear
+        # for i in range(self.model.model.start_layer, self.model.model.end_layer):
+            # self.model.model.layers[i].self_attn.qkv_proj = torch.compile(self.model.model.layers[i].self_attn.qkv_proj, dynamic=True)
+            # self.model.model.layers[i].self_attn.o_proj = torch.compile(self.model.model.layers[i].self_attn.o_proj, dynamic=True)
+            # self.model.model.layers[i].mlp = torch.compile(self.model.model.layers[i].mlp, dynamic=True)
 
     def _prepare_prompt(
         self,
@@ -267,7 +281,8 @@ class CPUModelRunner(ModelRunnerBase[CPUModelInput]):
                     block_table = block_table[-sliding_window_blocks:]
                 block_tables.append(block_table)
 
-        max_decode_seq_len = max(seq_lens)
+        # Wrap it as a tensor to workaround the recompile of each next token run
+        max_decode_seq_len = torch.tensor(max(seq_lens), dtype=torch.int32)
 
         input_tokens = torch.tensor(input_tokens,
                                     dtype=torch.long,
